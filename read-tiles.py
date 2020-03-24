@@ -6,17 +6,23 @@ import os
 import dask
 import dask.array as da
 import numpy as np
+import time
 
 
-def delay_as_array(tiff_file_object):
-    return tiff_file_object.pages[0].asarray()
+def delay_as_array(im, f_zip):
+    im_tiff = f_zip.open(im)  
 
-def filter_path(pth):
-    return pth.name.endswith('.tif') and not pth.name.endswith('ATB_R1.tif') and not pth.name.endswith('ATB_R2.tif')
+    tiff_f = tifffile.TiffFile(im_tiff)
 
-# declare path to directory containing one tile
+    return tiff_f.pages[0].asarray()
+
 HOME_PATH = "/media/draga/My Passport/pepsL2A_zip_img/55HBU/"
-NUM_IMS = 20 # images per tile per timestamp
+NUM_IMS = 20
+IM_SUFFIXES = ['FRE_B11', 'FRE_B12', 'FRE_B2', 'FRE_B3', 'FRE_B4', 'FRE_B5', 'FRE_B6', 'FRE_B7', 'FRE_B8', 'FRE_B8A',
+                'SRE_B11', 'SRE_B12', 'SRE_B2', 'SRE_B3', 'SRE_B4', 'SRE_B5', 'SRE_B6', 'SRE_B7', 'SRE_B8', 'SRE_B8A']
+IM_SHAPES = [(5490, 5490), (5490, 5490), (10980, 10980), (10980, 10980), (10980, 10980), (5490, 5490), (5490, 5490), (5490, 5490), (10980, 10980), (5490, 5490), 
+             (5490, 5490), (5490, 5490), (10980, 10980), (10980, 10980), (10980, 10980), (5490, 5490), (5490, 5490), (5490, 5490), (10980, 10980), (5490, 5490)]
+IM_DTYPE = np.dtype('int16')
 
 # get all timestamps for each tile
 all_dirs = os.listdir(HOME_PATH)
@@ -28,56 +34,43 @@ for fl in all_dirs:
 
 
 timestamps.sort(key= lambda x: x[0])
-grand_dask = [[None for j in range(2)] for i in range(NUM_IMS)]
+grand_dask = [[] for i in range(NUM_IMS)]
 i = len(timestamps)
-tiff_shape = (0,0)
-tiff_dtype = None
+
 for timestamp, fn in timestamps:
     f_zip = zipfile.ZipFile(HOME_PATH + fn)
-
-    f_path = zipfile.Path(f_zip)
-    # get all the tif paths for this timestamp
-    for dr in f_path.iterdir():
-        tiff_drs = filter(filter_path, dr.iterdir())
-        tiff_pths = sorted([tiff_pth.open() for tiff_pth in tiff_drs],
-        key= lambda pth: pth.name)
     
     # open each tiff in this timestamp and append it to the grand array
-    for j, tiff_pth in enumerate(tiff_pths):
-        tiff_f = tifffile.TiffFile(tiff_pth)
-        tiff_shape = tiff_f.pages[0].shape
-        tiff_dtype = tiff_f.pages[0].dtype
+    for j, suffix in enumerate(IM_SUFFIXES):
+        current_im = fn[:-4] + '/' + fn[:-4] + '_' + suffix + '.tif'
 
-        grand_dask[j][0] = tiff_shape
-        grand_dask[j][1] = tiff_dtype
-
-        tiff_delayed = dask.delayed(delay_as_array)(tiff_f)
+        tiff_delayed = dask.delayed(delay_as_array)(current_im, f_zip)
         grand_dask[j].append(tiff_delayed)
-
-        print(tiff_pth.name, tiff_shape, tiff_dtype)
-        tiff_f.close()
 
     i -=1
     print("{} timestamps remaining".format(i))
 
-    if i == 105:
+    if i == 106:
         break;
 
 all_images = []
 # for each image of this resolution
-for im_type in grand_dask:
+for i, im_type in enumerate(grand_dask):
     all_images.append(
         da.stack(
-            [da.from_delayed(im, shape=im_type[0], dtype=im_type[1]) for im in im_type[2:]]
+            [da.from_delayed(im, shape=IM_SHAPES[i], dtype=IM_DTYPE) for im in im_type]
             )
         )
 
-for image in all_images:
-    print("type {}\nshape {}\nchunks {}\n".format(type(image), image.shape, image.chunks))
-
 with napari.gui_qt():
+    start = time.time()
     v = napari.view_image(all_images[0], name='Im 1', is_pyramid=False)
+    end_1 = time.time()
 
     for i, img in enumerate(all_images[1:]):
-        v.add_image(img, name="Im " + str(i+1), is_pyramid=False, visible=False)
+        v.add_image(img, name="Im " + str(i+2), is_pyramid=False, visible=False)
+    end_2 = time.time()
+
+    print("First image: ", end_1 - start)
+    print("Second image: ", end_2 - end_1)
 

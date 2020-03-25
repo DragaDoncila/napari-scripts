@@ -2,32 +2,44 @@ import tifffile
 import zarr
 import dask
 import dask.array as da
-
-def delay_as_array(tiff_file_object):
-    return tiff_file_object.pages[0].asarray()
+import numpy as np
+import time
+import numcodecs
 
 HOME_PATH = "/media/draga/My Passport/pepsL2A_processed_img/55HBU/"
 NUM_CHUNKS = 40
 
 tiff_f = tifffile.TiffFile(HOME_PATH + "/55HBU_Image.tif")
 
-d_arr = da.from_delayed(dask.delayed(delay_as_array)(tiff_f), shape=tiff_f.pages[0].shape, dtype=tiff_f.pages[0].dtype)
-d_transposed = d_arr.transpose((2, 0, 1))
+d_mmap = np.memmap(HOME_PATH + "/55HBU_Image.tif", mode='r', dtype=tiff_f.pages[0].dtype, shape=tiff_f.pages[0].shape)
+d_transposed = d_mmap.transpose((2, 1, 0))
 
+tiff_f.close()
+
+# check size of one chunk saved with different compressors
+# must give the chunking parameter per axis
 z_arr = zarr.open('/media/draga/My Passport/pepsL2A_zarr_processed/55HBU_Image.zarr', 
-                mode='w', shape=d_transposed.shape, dtype=d_transposed.dtype)
+                mode='w', shape=d_transposed.shape, dtype=d_transposed.dtype,
+                chunks=(1, None, None))
 
-print(z_arr.chunks)
-
-chunk_size = d_transposed.shape[2] // 40
+print(d_transposed.shape)
+chunk_size = d_transposed.shape[1] // NUM_CHUNKS
 
 start = 0
 end = 0
-for i in range(NUM_CHUNKS):
+for i in range(1):
     start = i * chunk_size
     end = start + chunk_size
 
-    z_arr[:, :, start:end] = d_transposed[:, :, start:end]
+    copy_start = time.time()
+    print("Copying...")
+    current_slice = np.copy(d_transposed[:,  start:end, :])
+    copy_end = time.time()
+
+    print("Copying complete: {} seconds, assigning...".format(copy_end - copy_start))
+    z_arr[:, start:end, :] = current_slice[:, :, :]
+    assign_end = time.time()
+    print("Assigned: {} seconds".format(assign_end - copy_end))
 
 # remainder that doesn't fit into an even chunk
-z_arr[:, :, end:] = d_transposed[:, :, end:]
+# z_arr[:, :, end:] = d_transposed[:, :, end:]

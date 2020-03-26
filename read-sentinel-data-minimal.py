@@ -18,7 +18,7 @@ def delay_as_array(im, f_zip):
 
 
 # hard coding metadata to avoid opening tiffs
-HOME_PATH = "/media/draga/My Passport/pepsL2A_zip_img/55HBU/"
+HOME_PATH = "."
 NUM_BANDS = 20
 IM_SUFFIXES = ['FRE_B11', 'FRE_B12', 'FRE_B2', 'FRE_B3', 'FRE_B4', 'FRE_B5', 'FRE_B6', 'FRE_B7', 'FRE_B8', 'FRE_B8A',
                 'SRE_B11', 'SRE_B12', 'SRE_B2', 'SRE_B3', 'SRE_B4', 'SRE_B5', 'SRE_B6', 'SRE_B7', 'SRE_B8', 'SRE_B8A']

@@ -1,91 +1,152 @@
+import pandas as pd
+import os
+import sys
 import tifffile
 import napari
 import zipfile
 import re
-import os
+from glob import glob
 import dask
 import dask.array as da
 import numpy as np
 import time
+from collections import defaultdict
 
 
-def delay_as_array(im, f_zip):
-    im_tiff = f_zip.open(im)  
+@dask.delayed
+def ziptiff2array(zip_filename, path_to_tiff):
+    """Return a NumPy array from a TiffFile within a zip file.
 
-    tiff_f = tifffile.TiffFile(im_tiff)
+    Parameters
+    ----------
+    zip_filename : str
+        Path to the zip file containing the tiff.
+    path_to_tiff : str
+        The path to the TIFF file within the zip archive.
 
-    return tiff_f.pages[0].asarray()
+    Returns
+    -------
+    image : numpy array
+        The output image.
+
+    Notes
+    -----
+    This is a delayed function, so it actually returns a dask task. Call
+    ``result.compute()`` or ``np.array(result)`` to instantiate the data.
+    """
+    with zipfile.ZipFile(zip_filename) as zipfile_obj:
+        open_tiff_file = zipfile_obj.open(path_to_tiff)
+        tiff_f = tifffile.TiffFile(open_tiff_file)
+        image = tiff_f.pages[0].asarray()
+    return image
 
 
 # hard coding metadata to avoid opening tiffs
-HOME_PATH = "."
-NUM_BANDS = 20
-IM_SUFFIXES = ['FRE_B11', 'FRE_B12', 'FRE_B2', 'FRE_B3', 'FRE_B4', 'FRE_B5', 'FRE_B6', 'FRE_B7', 'FRE_B8', 'FRE_B8A',
-                'SRE_B11', 'SRE_B12', 'SRE_B2', 'SRE_B3', 'SRE_B4', 'SRE_B5', 'SRE_B6', 'SRE_B7', 'SRE_B8', 'SRE_B8A']
-IM_SHAPES = [(5490, 5490), (5490, 5490), (10980, 10980), (10980, 10980), (10980, 10980), (5490, 5490), (5490, 5490), (5490, 5490), (10980, 10980), (5490, 5490), 
-             (5490, 5490), (5490, 5490), (10980, 10980), (10980, 10980), (10980, 10980), (5490, 5490), (5490, 5490), (5490, 5490), (10980, 10980), (5490, 5490)]
-IM_DTYPE = np.dtype('int16')
-SCALES = [[20.0, 20.0], [20.0, 20.0], [10.0, 10.0], [10.0, 10.0], [10.0, 10.0], [20.0, 20.0], [20.0, 20.0], [20.0, 20.0], [10.0, 10.0], [20.0, 20.0], 
-          [20.0, 20.0], [20.0, 20.0], [10.0, 10.0], [10.0, 10.0], [10.0, 10.0], [20.0, 20.0], [20.0, 20.0], [20.0, 20.0], [10.0, 10.0], [20.0, 20.0]]
+DATA_ROOT_PATH = "." if len(sys.argv) == 1 else sys.argv[1]
+
+# each zip file contains many bands, ie channels
+BANDS = [
+    "FRE_B11",
+    "FRE_B12",
+    "FRE_B2",
+    "FRE_B3",
+    "FRE_B4",
+    "FRE_B5",
+    "FRE_B6",
+    "FRE_B7",
+    "FRE_B8",
+    "FRE_B8A",
+    "SRE_B11",
+    "SRE_B12",
+    "SRE_B2",  # surface reflectance, red
+    "SRE_B3",  # surface reflectance, green
+    "SRE_B4",  # surface reflectance, blue
+    "SRE_B5",
+    "SRE_B6",
+    "SRE_B7",
+    "SRE_B8",
+    "SRE_B8A",
+]
+IM_SHAPES = [
+    (5490, 5490),
+    (5490, 5490),
+    (10980, 10980),
+    (10980, 10980),
+    (10980, 10980),
+    (5490, 5490),
+    (5490, 5490),
+    (5490, 5490),
+    (10980, 10980),
+    (5490, 5490),
+    (5490, 5490),
+    (5490, 5490),
+    (10980, 10980),
+    (10980, 10980),
+    (10980, 10980),
+    (5490, 5490),
+    (5490, 5490),
+    (5490, 5490),
+    (10980, 10980),
+    (5490, 5490),
+]
+SCALES = 10980 * 10 / np.array(IM_SHAPES)  # 10m per pix is highest res
+OFFSETS = [(5, 5) if shape[0] == 5490 else (0, 0) for shape in IM_SHAPES]
+SHAPES = dict(zip(BANDS, IM_SHAPES))
+OFFSETS = dict(zip(BANDS, OFFSETS))
+SCALES = dict(zip(BANDS, SCALES))
 
 # get all timestamps for this tile, and sort them
-all_dirs = os.listdir(HOME_PATH)
-timestamps = []
-for fl in all_dirs:
-    if fl.endswith('.zip'):
-        timestamp = fl.split('_')[1]
-        timestamps.append([timestamp, fl])
-timestamps.sort(key= lambda x: x[0])
+all_zips = sorted(glob(DATA_ROOT_PATH + '/*.zip'))
+print(all_zips)
+print(DATA_ROOT_PATH)
+timestamps = [os.path.basename(fn).split('_')[1] for fn in all_zips]
 
-all_bands = [[] for i in range(NUM_BANDS)]
-for timestamp, fn in timestamps:
-    # open up zip for this timestamp
-    f_zip = zipfile.ZipFile(HOME_PATH + fn)
-    
-    # append each band for this timestamp to all bands
-    for j, suffix in enumerate(IM_SUFFIXES):
-        current_im = fn[:-4] + '/' + fn[:-4] + '_' + suffix + '.tif'
-
-        tiff_delayed = dask.delayed(delay_as_array)(current_im, f_zip)
-        all_bands[j].append(tiff_delayed)
-
-# stack each band together for all timestamps
-all_images = []
-for i, im_type in enumerate(all_bands):
-    all_images.append(
-        da.stack(
-            [da.from_delayed(im, shape=IM_SHAPES[i], dtype=IM_DTYPE) for im in im_type]
-            )
+# stack all timepoints together for each band
+images = {}
+for band, shape in zip(BANDS, IM_SHAPES):
+    stack = []
+    for fn in all_zips:
+        basepath = os.path.splitext(os.path.basename(fn))[0]
+        path = basepath + '/' + basepath + '_' + band + '.tif'
+        image = da.from_delayed(
+            ziptiff2array(fn, path), shape=shape, dtype=np.int16
         )
+        stack.append(image)
+    images[band] = da.stack(stack)
+
+
+colormaps = defaultdict(lambda: 'gray')
+for band in BANDS:
+    if band.endswith('B2'):
+        colormaps[band] = 'red'
+    elif band.endswith('B3'):
+        colormaps[band] = 'green'
+    elif band.endswith('B4'):
+        colormaps[band] = 'blue'
+
 
 with napari.gui_qt():
-    start = time.time()
-    v = napari.view_image(all_images[0], name=IM_SUFFIXES[0] + '_' + str(SCALES[0]), is_pyramid=False, scale=SCALES[0],
-        translate=(5, 5) if SCALES[0] == [20, 20, 0] else None)
-    end_1 = time.time()
-
-    # add remaining labels, making RGB visible and blending
-    for i, img in enumerate(all_images[1:], start=1):
-        if IM_SUFFIXES[i] == 'SRE_B2':
-            v.add_labels(img, name=IM_SUFFIXES[i] + '_' + str(SCALES[i]), is_pyramid=False, visible=True, scale=SCALES[1],
-            translate=(5, 5) if SCALES[i] == [20, 20, 0] else None,
-            colormap='blue',
-            blending='additive')
-        elif IM_SUFFIXES[i] == 'SRE_B3':
-            v.add_labels(img, name=IM_SUFFIXES[i] + '_' + str(SCALES[i]), is_pyramid=False, visible=True, scale=SCALES[1],
-            translate=(5, 5) if SCALES[i] == [20, 20, 0] else None,
-            colormap='green',
-            blending='additive')
-        elif IM_SUFFIXES[i] == 'SRE_B4':
-            v.add_labels(img, name=IM_SUFFIXES[i] + '_' + str(SCALES[i]), is_pyramid=False, visible=True, scale=SCALES[1],
-            translate=(5, 5) if SCALES[i] == [20, 20, 0] else None,
-            colormap='red',
-            blending='additive')
-        else:
-            v.add_labels(img, name=IM_SUFFIXES[i] + '_' + str(SCALES[i]), is_pyramid=False, visible=False, scale=SCALES[1],
-            translate=(5, 5) if SCALES[i] == [20, 20, 0] else None)
-    end_2 = time.time()
-
-    print("First image: ", end_1 - start)
-    print("Remaining layers: ", end_2 - end_1)
-
+    v = napari.Viewer()
+    times = []
+    visibles = []
+    for band, image in images.items():
+        colormap = colormaps[band]
+        blending = 'additive' if colormaps[band] != 'gray' else 'translucent'
+        visible = (band in {'SRE_B2', 'SRE_B3', 'SRE_B4'})
+        start = time.time()
+        v.add_image(
+            image,
+            name=band,
+            is_pyramid=False,
+            scale=SCALES[band],
+            translate=OFFSETS[band],
+            colormap=colormap,
+            blending=blending,
+            visible=visible,
+            contrast_limits=[-1000, 19_000],
+        )
+        times.append(time.time() - start)
+        visibles.append(visible)
+    sizes = np.prod(IM_SHAPES, axis=1)
+    df = pd.DataFrame({'sizes' : sizes, 'times' : times, 'visible' : visibles})
+    print(df)

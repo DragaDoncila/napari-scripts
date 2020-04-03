@@ -7,7 +7,8 @@ import time
 from numcodecs import Blosc
 
 HOME_PATH = "/media/draga/My Passport/pepsL2A_processed_img/55HBU/"
-CHUNK_SIZE = 1
+CHUNK_SIZE = 30
+NUM_CHUNKS = 40
 
 tiff_f = tifffile.TiffFile(HOME_PATH + "/55HBU_Image.tif")
 
@@ -27,7 +28,7 @@ z_arr = zarr.open(z_name, mode='w',
 start = 0
 end = 0
 
-num_chunks = z_arr.shape[0] // CHUNK_SIZE
+NUM_CHUNKS = z_arr.shape[0] // CHUNK_SIZE
 global_start = time.time()
 #TODO: tqdm for progress bar?
 for i in range(1):
@@ -36,22 +37,27 @@ for i in range(1):
 
     copy_start = time.time()
     print("Start: {}\tEnd: {}".format(start, end))
-    print("Copying d_transposed[:, {}:{}, :]".format(start, end))
+    print("Copying d_transposed[{}:{}, :, :]".format(start, end))
     current_slice = np.copy(d_transposed[start:end, :, :])
     copy_end = time.time()
 
     print("Copying complete: {} minutes.".format((copy_end - copy_start) / 60))
-    print("Assigning slice into zarr..")
+    print("Assigning slice into zarr...")
     z_arr[start:end, :, :] = current_slice
     assign_end = time.time()
     print("Assigned: {} minutes".format((assign_end - copy_end) / 60))
 
-    print("{} chunks remaining...".format(num_chunks - i - 1))
+    del(current_slice)
+    print("{} chunks remaining...".format(NUM_CHUNKS - i - 1))
     print("#*#" * 20)
 
-# remainder zthat doesn't fit into an even chunk
-print("Assigning remainder...")
-z_arr[end:, :, :] = d_transposed[end:, :, :]
+
+if z_arr.shape[0] % CHUNK_SIZE != 0:
+    print("Copying remainder...")
+    final_slice = np.copy(d_transposed[end:, :, :])
+    # remainder zthat doesn't fit into an even chunk
+    print("Assigning remainder...")
+    z_arr[end:, :, :] = final_slice
 
 global_end = time.time()
 print("TOTAL TIME: {}".format(global_end - global_start))

@@ -22,7 +22,7 @@ CHUNK_SIZES = [
     10980
 ]
 
-FILENAMES = ["Chunk_{}_55HBU.zarr".format(chunk_size) for chunk_size in CHUNK_SIZES]
+FILENAMES = [f"Chunk_{chunk_size}_55HBU.zarr" for chunk_size in CHUNK_SIZES]
 
 compressor = Blosc(
                 cname='zstd', 
@@ -40,19 +40,18 @@ for i in range(len(CHUNK_SIZES)):
     fn = FILENAMES[i]
     chunk = CHUNK_SIZES[i]
 
-    z_name = '/media/draga/My Passport/pepsL2A_zarr_processed/55HBU_Image.zarr'
-    slice_zarr = zarr.open(z_name, 
+    slice_zarr = zarr.open(fn, 
                 mode='w', 
                 shape=im_slice.shape, 
                 dtype=zarr_im.dtype,
-                chunks=(NUM_TIMEPOINTS, chunk, chunk), 
+                chunks=(1, chunk, chunk), 
                 compressor=compressor
             )
-    slice_zarr = im_slice
+    slice_zarr[:, :, :] = im_slice[:, :, :]
     slice_zarr.close()
 
     convert_start = time.time()
-    slice_zarr = zarr.open(z_name, mode='r')
+    slice_zarr = zarr.open(fn, mode='r')
     slice_np = np.array(slice_zarr)
     convert_end = time.time()
 

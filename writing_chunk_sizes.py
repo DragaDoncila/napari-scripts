@@ -4,6 +4,7 @@ import numpy as np
 import tifffile
 import pandas as pd
 from numcodecs import Blosc
+from tqdm import tqdm
 
 # HOME_PATH = "/media/draga/My Passport/pepsL2A_processed_img/55HBU/55HBU_Image.tif"
 
@@ -23,6 +24,7 @@ CHUNK_SIZES = [
 ]
 
 FILENAMES = [f"Chunk_{chunk_size}_55HBU.zarr" for chunk_size in CHUNK_SIZES]
+CHUNK_DATA = zip(FILENAMES, CHUNK_SIZES)
 
 compressor = Blosc(
                 cname='zstd', 
@@ -34,9 +36,8 @@ compressor = Blosc(
 zarr_im = zarr.open('/media/draga/My Passport/pepsL2A_zarr_processed/55HBU_Image.zarr', mode='r')
 im_slice = zarr_im[:NUM_TIMEPOINTS, :, :]
 
-times = []
-
-for fn, chunk in zip(FILENAMES, CHUNK_SIZES):
+pbar = tqdm(CHUNK_DATA)
+for fn, chunk in pbar:
     
     slice_zarr = zarr.open(fn, 
                 mode='w', 
@@ -46,14 +47,5 @@ for fn, chunk in zip(FILENAMES, CHUNK_SIZES):
                 compressor=compressor
             )
     slice_zarr[:, :, :] = im_slice[:, :, :]
-    slice_zarr.close()
 
-    slices_zarr = zarr.open(fn, mode='r')
-    convert_start = time.time()
-    slice_np = slices_zarr[0]
-    convert_end = time.time()
-
-    times.append(convert_end - convert_start)
-
-df = pd.DataFrame({'filename' : FILENAMES, 'chunk_size': CHUNK_SIZES, 'time' : times})
-df.to_csv('ReadTimes_ChunkSizes.csv')
+    pbar.set_description(f"Processing {chunk}")

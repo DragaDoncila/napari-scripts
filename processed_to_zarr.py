@@ -23,7 +23,7 @@ z_name = '/media/draga/My Passport/pepsL2A_zarr_processed/55HBU_Image.zarr'
 z_arr = zarr.open(z_name, mode='w', 
                 shape=(d_transposed.shape[0], d_transposed.shape[1], d_transposed.shape[2]), 
                 dtype=d_transposed.dtype,
-                chunks=(1, None, None), compressor=compressor)
+                chunks=(1, 1024, 1024), compressor=compressor)
 
 start = 0
 end = 0
@@ -31,7 +31,7 @@ end = 0
 NUM_CHUNKS = z_arr.shape[0] // CHUNK_SIZE
 global_start = time.time()
 #TODO: tqdm for progress bar?
-for i in range(1):
+for i in range(NUM_CHUNKS):
     start = i * CHUNK_SIZE
     end = start + CHUNK_SIZE
 

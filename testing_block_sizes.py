@@ -48,12 +48,12 @@ for fn, chunk in zip(FILENAMES, CHUNK_SIZES):
     slice_zarr[:, :, :] = im_slice[:, :, :]
     slice_zarr.close()
 
+    slices_zarr = zarr.open(fn, mode='r')
     convert_start = time.time()
-    slice_zarr = zarr.open(fn, mode='r')
-    slice_np = np.array(slice_zarr)
+    slice_np = slices_zarr[0]
     convert_end = time.time()
 
     times.append(convert_end - convert_start)
 
-df = pd.DataFrame({'filename' : sizes, 'chunk_size': CHUNK_SIZES, 'time' : times})
+df = pd.DataFrame({'filename' : FILENAMES, 'chunk_size': CHUNK_SIZES, 'time' : times})
 df.to_csv('ReadTimes_ChunkSizes.csv')

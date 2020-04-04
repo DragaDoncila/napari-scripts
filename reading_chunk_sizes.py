@@ -10,7 +10,7 @@ FILENAMES = [f"Chunk_{chunk_size}_55HBU.zarr" for chunk_size in CHUNK_SIZES]
 CHUNK_DATA = zip(FILENAMES, CHUNK_SIZES)
 
 times = []
-pbar = tqdm(CHUNK_DATA)
+pbar = tqdm(CHUNK_DATA, total=len(FILENAMES))
 
 for fn, chunk in pbar:
     slices_zarr = zarr.open(fn, mode='r')

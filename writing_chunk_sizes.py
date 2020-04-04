@@ -36,7 +36,7 @@ compressor = Blosc(
 zarr_im = zarr.open('/media/draga/My Passport/pepsL2A_zarr_processed/55HBU_Image.zarr', mode='r')
 im_slice = zarr_im[:NUM_TIMEPOINTS, :, :]
 
-pbar = tqdm(CHUNK_DATA)
+pbar = tqdm(CHUNK_DATA, total=len(FILENAMES))
 for fn, chunk in pbar:
     
     slice_zarr = zarr.open(fn, 

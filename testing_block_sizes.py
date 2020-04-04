@@ -36,14 +36,12 @@ im_slice = zarr_im[:NUM_TIMEPOINTS, :, :]
 
 times = []
 
-for i in range(len(CHUNK_SIZES)):
-    fn = FILENAMES[i]
-    chunk = CHUNK_SIZES[i]
-
+for fn, chunk in zip(FILENAMES, CHUNK_SIZES):
+    
     slice_zarr = zarr.open(fn, 
                 mode='w', 
                 shape=im_slice.shape, 
-                dtype=zarr_im.dtype,
+                dtype=im_slice.dtype,
                 chunks=(1, chunk, chunk), 
                 compressor=compressor
             )

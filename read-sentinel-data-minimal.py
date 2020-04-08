@@ -11,7 +11,9 @@ import dask.array as da
 import numpy as np
 import time
 from collections import defaultdict
+from skimage.io import imread
 
+# "SENTINEL2A_20170727-001619-786_L2A_T55HBU_C_V1-0_QKL_ALL.jpg"
 
 @dask.delayed
 def ziptiff2array(zip_filename, path_to_tiff):
@@ -66,7 +68,8 @@ BANDS = [
     "SRE_B7",
     "SRE_B8",
     "SRE_B8A",
-]
+    ]
+
 IM_SHAPES = [
     (5490, 5490),
     (5490, 5490),
@@ -89,6 +92,7 @@ IM_SHAPES = [
     (10980, 10980),
     (5490, 5490),
 ]
+
 SCALES = 10980 * 10 / np.array(IM_SHAPES)  # 10m per pix is highest res
 OFFSETS = [(5, 5) if shape[0] == 5490 else (0, 0) for shape in IM_SHAPES]
 SHAPES = dict(zip(BANDS, IM_SHAPES))
@@ -97,8 +101,8 @@ SCALES = dict(zip(BANDS, SCALES))
 
 # get all timestamps for this tile, and sort them
 all_zips = sorted(glob(DATA_ROOT_PATH + '/*.zip'))
-print(all_zips)
-print(DATA_ROOT_PATH)
+# print(all_zips)
+# print(DATA_ROOT_PATH)
 timestamps = [os.path.basename(fn).split('_')[1] for fn in all_zips]
 
 # stack all timepoints together for each band
@@ -106,13 +110,27 @@ images = {}
 for band, shape in zip(BANDS, IM_SHAPES):
     stack = []
     for fn in all_zips:
+        # get all the tiffs
         basepath = os.path.splitext(os.path.basename(fn))[0]
         path = basepath + '/' + basepath + '_' + band + '.tif'
         image = da.from_delayed(
             ziptiff2array(fn, path), shape=shape, dtype=np.int16
         )
         stack.append(image)
+
     images[band] = da.stack(stack)
+
+
+# get the quicklook jpg
+jpg_stack = []
+for fn in all_zips:
+    basepath = os.path.splitext(os.path.basename(fn))[0]
+    path = basepath + '/' + basepath + '_' + 'QKL_ALL.jpg'
+    zip_obj = zipfile.ZipFile(fn)
+    open_jpg = zip_obj.open(path)
+    image = imread(open_jpg)
+    jpg_stack.append(image)
+images['QKL_ALL'] = da.stack(jpg_stack)
 
 
 colormaps = defaultdict(lambda: 'gray')
@@ -130,23 +148,40 @@ with napari.gui_qt():
     times = []
     visibles = []
     for band, image in images.items():
-        colormap = colormaps[band]
-        blending = 'additive' if colormaps[band] != 'gray' else 'translucent'
-        visible = (band in {'SRE_B2', 'SRE_B3', 'SRE_B4'})
-        start = time.time()
-        v.add_image(
-            image,
-            name=band,
-            is_pyramid=False,
-            scale=SCALES[band],
-            translate=OFFSETS[band],
-            colormap=colormap,
-            blending=blending,
-            visible=visible,
-            contrast_limits=[-1000, 19_000],
-        )
+        if band != 'QKL_ALL':
+            colormap = colormaps[band]
+            blending = 'additive' if colormaps[band] != 'gray' else 'translucent'
+            visible = False
+            start = time.time()
+            v.add_image(
+                image,
+                name=band,
+                is_pyramid=False,
+                scale=SCALES[band],
+                # translate=OFFSETS[band],
+                colormap=colormap,
+                blending=blending,
+                visible=visible,
+                contrast_limits=[-1000, 19_000],
+            )
+        else :
+            visible = True
+            start = time.time()
+            v.add_image(
+                image,
+                name=band,
+                is_pyramid=False,
+                scale=(109.8, 109.8),
+                # translate=(54.9, 54.9),
+                rgb=True,
+                visible=visible,
+                contrast_limits=[-1000, 19_000]
+            )
         times.append(time.time() - start)
         visibles.append(visible)
-    sizes = np.prod(IM_SHAPES, axis=1)
+
+    sizes = np.zeros(len(IM_SHAPES) + 1)
+    sizes[0:len(IM_SHAPES)] = np.prod(IM_SHAPES, axis=1)
+    sizes[len(IM_SHAPES)] = 1000*1000
     df = pd.DataFrame({'sizes' : sizes, 'times' : times, 'visible' : visibles})
     print(df)

@@ -10,7 +10,7 @@ HOME_PATH = "/media/draga/My Passport/pepsL2A_processed_img/55HBU/"
 CHUNK_SIZE = 30
 NUM_CHUNKS = 40
 
-tiff_f = tifffile.TiffFile(HOME_PATH + "/55HBU_Image.tif")
+tiff_f = tifffile.TiffFile(HOME_PATH + "/55HBU_GapFilled_Image.tif")
 
 d_mmap = tiff_f.pages[0].asarray(out='memmap')
 tiff_f.close()
@@ -19,19 +19,25 @@ d_transposed = d_mmap.transpose((2, 1, 0))
 
 compressor = Blosc(cname='zstd', clevel=9, shuffle=Blosc.SHUFFLE, blocksize=0)
 
-z_name = '/media/draga/My Passport/pepsL2A_zarr_processed/55HBU_Image.zarr'
-z_arr = zarr.open(z_name, mode='w', 
-                shape=(d_transposed.shape[0], d_transposed.shape[1], d_transposed.shape[2]), 
-                dtype=d_transposed.dtype,
-                chunks=(1, 1024, 1024), compressor=compressor)
+z_name = '/media/draga/My Passport/pepsL2A_zarr_processed/55HBU_GapFilled_Image.zarr'
+z_arr = zarr.open(
+            z_name, 
+            mode='a', 
+            shape=(d_transposed.shape[0], d_transposed.shape[1], d_transposed.shape[2]), 
+            dtype=d_transposed.dtype,
+            chunks=(1, None, None), 
+            compressor=compressor
+            )
 
 start = 0
 end = 0
 
 NUM_CHUNKS = z_arr.shape[0] // CHUNK_SIZE
+# NUM_CHUNKS = 1
+
 global_start = time.time()
 #TODO: tqdm for progress bar?
-for i in range(NUM_CHUNKS):
+for i in range(0, 4):
     start = i * CHUNK_SIZE
     end = start + CHUNK_SIZE
 
@@ -52,12 +58,12 @@ for i in range(NUM_CHUNKS):
     print("#*#" * 20)
 
 
-if z_arr.shape[0] % CHUNK_SIZE != 0:
-    print("Copying remainder...")
-    final_slice = np.copy(d_transposed[end:, :, :])
-    # remainder zthat doesn't fit into an even chunk
-    print("Assigning remainder...")
-    z_arr[end:, :, :] = final_slice
+# if z_arr.shape[0] % CHUNK_SIZE != 0:
+#     print("Copying remainder...")
+#     final_slice = np.copy(d_transposed[end:, :, :])
+#     # remainder that doesn't fit into an even chunk
+#     print("Assigning remainder...")
+#     z_arr[end:, :, :] = final_slice
 
 global_end = time.time()
 print("TOTAL TIME: {}".format(global_end - global_start))

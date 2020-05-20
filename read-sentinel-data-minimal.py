@@ -101,7 +101,7 @@ SCALES = dict(zip(BANDS, SCALES))
 
 # get all timestamps for this tile, and sort them
 all_zips = sorted(glob(DATA_ROOT_PATH + '/*.zip'))
-# print(all_zips)
+print(all_zips)
 # print(DATA_ROOT_PATH)
 timestamps = [os.path.basename(fn).split('_')[1] for fn in all_zips]
 
@@ -129,8 +129,11 @@ for fn in all_zips:
     zip_obj = zipfile.ZipFile(fn)
     open_jpg = zip_obj.open(path)
     image = imread(open_jpg)
+    print(type(image), image.shape)
     jpg_stack.append(image)
 images['QKL_ALL'] = da.stack(jpg_stack)
+
+
 
 
 colormaps = defaultdict(lambda: 'gray')
@@ -143,45 +146,51 @@ for band in BANDS:
         colormaps[band] = 'blue'
 
 
-with napari.gui_qt():
-    v = napari.Viewer()
-    times = []
-    visibles = []
-    for band, image in images.items():
-        if band != 'QKL_ALL':
-            colormap = colormaps[band]
-            blending = 'additive' if colormaps[band] != 'gray' else 'translucent'
-            visible = False
-            start = time.time()
-            v.add_image(
-                image,
-                name=band,
-                is_pyramid=False,
-                scale=SCALES[band],
-                # translate=OFFSETS[band],
-                colormap=colormap,
-                blending=blending,
-                visible=visible,
-                contrast_limits=[-1000, 19_000],
-            )
-        else :
-            visible = True
-            start = time.time()
-            v.add_image(
-                image,
-                name=band,
-                is_pyramid=False,
-                scale=(109.8, 109.8),
-                # translate=(54.9, 54.9),
-                rgb=True,
-                visible=visible,
-                contrast_limits=[-1000, 19_000]
-            )
-        times.append(time.time() - start)
-        visibles.append(visible)
+# with napari.gui_qt():
+#     v = napari.Viewer()
+#     times = []
+#     visibles = []
+#     for band, image in images.items():
+#         if band != 'QKL_ALL':
+#             colormap = colormaps[band]
+#             blending = 'additive' if colormaps[band] != 'gray' else 'translucent'
+#             visible = band in {"SRE_B2", "SRE_B3","SRE_B4"}
+#             start = time.time()
+#             v.add_image(
+#                 image,
+#                 name=band,
+#                 is_pyramid=False,
+#                 scale=SCALES[band],
+#                 # translate=OFFSETS[band],
+#                 colormap=colormap,
+#                 blending=blending,
+#                 visible=visible,
+#                 contrast_limits=[-1000, 19_000],
+#             )
+#         else:
+#             visible = False
+#             start = time.time()
+#             v.add_image(
+#                 image,
+#                 name=band,
+#                 is_pyramid=False,
+#                 scale=(109.8, 109.8),
+#                 # translate=(54.9, 54.9),
+#                 rgb=True,
+#                 visible=visible,
+#                 contrast_limits=[-1000, 19_000]
+#             )
+#         times.append(time.time() - start)
+#         visibles.append(visible)
+#     # v.add_labels(
+#     #     label_im, 
+#     #     scale=(10, 10), 
+#     #     name="Model"
+#     #     )
 
-    sizes = np.zeros(len(IM_SHAPES) + 1)
-    sizes[0:len(IM_SHAPES)] = np.prod(IM_SHAPES, axis=1)
-    sizes[len(IM_SHAPES)] = 1000*1000
-    df = pd.DataFrame({'sizes' : sizes, 'times' : times, 'visible' : visibles})
-    print(df)
+
+#     sizes = np.zeros(len(IM_SHAPES) + 1)
+#     sizes[0:len(IM_SHAPES)] = np.prod(IM_SHAPES, axis=1)
+#     sizes[len(IM_SHAPES)] = 1000*1000
+#     df = pd.DataFrame({'sizes' : sizes, 'times' : times, 'visible' : visibles})
+#     print(df)

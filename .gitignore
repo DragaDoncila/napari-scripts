@@ -2,3 +2,6 @@
 *.zarr
 *.csv
 *.zip
+*.txt
+write_unchunked.py
+test_zarr.py

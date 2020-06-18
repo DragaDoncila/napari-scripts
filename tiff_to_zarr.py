@@ -13,6 +13,7 @@ from numcodecs import Blosc
 from glob import glob
 import os
 import re
+from pathlib import Path
 
 HOME_PATH = "/media/draga/My Passport/"
 CHUNK_SIZE = 30
@@ -71,7 +72,7 @@ def convert_processed_to_zarr(filename, outname, chunk_size, axis_transpose):
     global_end = time.time()
     print("TOTAL TIME: {}".format(global_end - global_start))
 
-def get_paths_for_conversion(root_path):
+def get_paths_for_conversion(root_path, pattern):
     """Get list of absolute paths to all files within root_path and subdirectories which contain Sentinel images
 
     Args:
@@ -80,13 +81,13 @@ def get_paths_for_conversion(root_path):
     Returns:
         List: list of absolute paths to all files containing Sentinel images within root_path
     """
-    
+
     processed_path_list = []
     raw_path_list = []
 
     path_list = [x[0] for x in os.walk(root_path)]
     tile_paths = list(filter(
-        lambda pth: re.search(r"(media/draga/My Passport/)(.*)([0-9][0-9][A-Z][A-Z][A-Z])$", pth),
+        lambda pth: re.search(pattern, pth),
         path_list))
 
     for tile_directory in tile_paths:
@@ -97,9 +98,22 @@ def get_paths_for_conversion(root_path):
 
     return processed_path_list, raw_path_list
 
-
-
+def get_in_out_mapping(paths, out_path, pattern):
+    path_mapping = {}
+    for pth in paths:
+        match = re.search(pattern, pth)
+        match_groups = match.groups()
+        out_dir = out_path + "".join(match_groups[1:len(match_groups)-1])
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        path_mapping[pth] = out_dir
+    return path_mapping
 
 
 if __name__ == "__main__":
-    get_paths_for_conversion(HOME_PATH)
+    pattern = rf"({HOME_PATH})(.*)([0-9][0-9][A-Z][A-Z][A-Z])$"
+    processed_paths, raw_paths = get_paths_for_conversion(HOME_PATH, pattern)
+
+    tif_split_pattern = rf"({HOME_PATH})(.*)([0-9][0-9][A-Z][A-Z][A-Z].*/)(.*.tif)"
+    zip_split_pattern = rf"({HOME_PATH})(.*)([0-9][0-9][A-Z][A-Z][A-Z].*/)(.*.zip)"
+    processed_path_mapping = get_in_out_mapping(processed_paths, OUT_PATH, tif_split_pattern)
+    raw_path_mapping = get_in_out_mapping(raw_paths, OUT_PATH, zip_split_pattern)

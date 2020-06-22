@@ -19,7 +19,7 @@ HOME_PATH = "/media/draga/My Passport/"
 CHUNK_SIZE = 30
 OUT_PATH = "/media/draga/My Passport/Zarr/"
 
-def convert_processed_to_zarr(filename, outname, chunk_size, axis_transpose):
+def convert_processed_im_to_zarr(filename, outname, chunk_size, axis_transpose, step_size):
     tiff_f = tifffile.TiffFile(filename)
     d_mmap = tiff_f.pages[0].asarray(out='memmap')
     tiff_f.close()
@@ -30,21 +30,20 @@ def convert_processed_to_zarr(filename, outname, chunk_size, axis_transpose):
     z_arr = zarr.open(
                 outname, 
                 mode='a', 
-                shape=(d_transposed.shape[0], d_transposed.shape[1], d_transposed.shape[2]), 
+                shape=d_transposed.shape, 
                 dtype=d_transposed.dtype,
-                chunks=(1, None, None), 
+                chunks=(1, chunk_size, chunk_size), 
                 compressor=compressor
                 )
 
     start = 0
     end = 0
-    num_chunks = z_arr.shape[0] // chunk_size
+    num_chunks = z_arr.shape[0] // step_size
 
     global_start = time.time()
-    #TODO: tqdm for progress bar?
     for i in range(0, 4):
-        start = i * chunk_size
-        end = start + chunk_size
+        start = i * step_size
+        end = start + step_size
 
         copy_start = time.time()
         print("Start: {}\tEnd: {}".format(start, end))
@@ -63,7 +62,7 @@ def convert_processed_to_zarr(filename, outname, chunk_size, axis_transpose):
         print("#*#" * 20)
 
 
-    if z_arr.shape[0] % chunk_size != 0:
+    if z_arr.shape[0] % step_size != 0:
         print("Copying remainder...")
         final_slice = np.copy(d_transposed[end:, :, :])
         print("Assigning remainder...")
@@ -108,6 +107,11 @@ def get_in_out_mapping(paths, out_path, pattern):
         path_mapping[pth] = out_dir
     return path_mapping
 
+def processed_to_zarr(in_out_mapping, chunksize, axis_transpose, step_size):
+    for fn, dest in in_out_mapping.items():
+        out_pth = dest + os.path.basename(fn)[:-3] + "zarr"
+        convert_processed_im_to_zarr(fn, out_pth, chunksize, axis_transpose, step_size)
+
 
 if __name__ == "__main__":
     pattern = rf"({HOME_PATH})(.*)([0-9][0-9][A-Z][A-Z][A-Z])$"
@@ -115,5 +119,11 @@ if __name__ == "__main__":
 
     tif_split_pattern = rf"({HOME_PATH})(.*)([0-9][0-9][A-Z][A-Z][A-Z].*/)(.*.tif)"
     zip_split_pattern = rf"({HOME_PATH})(.*)([0-9][0-9][A-Z][A-Z][A-Z].*/)(.*.zip)"
+
     processed_path_mapping = get_in_out_mapping(processed_paths, OUT_PATH, tif_split_pattern)
     raw_path_mapping = get_in_out_mapping(raw_paths, OUT_PATH, zip_split_pattern)
+
+    chunksize=1024
+    axis_transpose = (2, 1, 0)
+    step_size=1
+    processed_to_zarr(processed_path_mapping, chunksize, axis_transpose, step_size)

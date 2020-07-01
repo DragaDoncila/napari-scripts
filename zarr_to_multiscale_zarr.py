@@ -16,7 +16,7 @@ DOWNSCALE = 2
 FILENAME = '../55HBU_GapFilled_Image.zarr'
 OUTDIR = "/media/draga/My Passport/Zarr/55HBU_Multiscale_Zarr.zarr"
 CHUNKSIZE = 1024
-NUM_CHANNELS = 10
+NUM_CHANNELS = 1
 
 im = da.from_zarr(FILENAME)
 
@@ -49,7 +49,7 @@ contrast_histogram = functools.reduce(operator.add, (np.bincount(arr.ravel(), mi
 # # for each slice
 for i in tqdm(range(num_slices)):
     for j in tqdm(range(NUM_CHANNELS)):
-        im_slice = im[i, j, :, :]
+        im_slice = im[i, j+1, :, :]
         # get pyramid
         im_pyramid = list(pyramid_gaussian(im_slice, max_layer=MAX_LAYER, downscale=DOWNSCALE))
         # for each resolution

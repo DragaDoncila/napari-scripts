@@ -9,6 +9,7 @@ import functools
 import operator
 from tqdm import tqdm
 import json
+import dask.array as da
 
 MAX_LAYER = 5
 DOWNSCALE = 2
@@ -17,20 +18,20 @@ OUTDIR = "/media/draga/My Passport/Zarr/55HBU_Multiscale_Zarr.zarr"
 CHUNKSIZE = 1024
 NUM_CHANNELS = 10
 
-im = zarr.open(FILENAME, mode = 'r')
+im = da.from_zarr(FILENAME)
 
 im_shape = im.shape
-num_slices = im_shape[0] / NUM_CHANNELS
+num_slices = im_shape[0] // NUM_CHANNELS
 x = im_shape[1]
 y = im_shape[2]
-im = np.reshape(im, (num_slices, NUM_CHANNELS, x, y))
+im = da.reshape(im, (num_slices, NUM_CHANNELS, x, y))
 compressor = Blosc(cname='zstd', clevel=9, shuffle=Blosc.SHUFFLE, blocksize=0)
 
 Path(OUTDIR).mkdir(parents=True, exist_ok=True)
 # open zarr arrays for each resolution shape (num_slices, res, res)
 zarrs = []
 for i in range(0, MAX_LAYER):
-    new_res = tuple(np.ceil(np.array(im_shape[1:]) / (2 * i)).astype(int)) if i != 0 else im_shape[1:]
+    new_res = tuple(np.ceil(np.array(im_shape[1:]) / (DOWNSCALE * i)).astype(int)) if i != 0 else im_shape[1:]
     outname = OUTDIR + f"/{i}"
 
     z_arr = zarr.open(

@@ -38,7 +38,7 @@ for i in range(0, MAX_LAYER):
             mode='w', 
             shape=(num_slices, NUM_CHANNELS, 1, new_res[0], new_res[1]), 
             dtype=im.dtype,
-            chunks=(1, CHUNKSIZE, CHUNKSIZE), 
+            chunks=(1, 1, 1, CHUNKSIZE, CHUNKSIZE), 
             compressor=compressor
             )
     zarrs.append(z_arr)
@@ -47,7 +47,7 @@ for i in range(0, MAX_LAYER):
 contrast_histogram = functools.reduce(operator.add, (np.bincount(arr.ravel(), minlength=2**16) for arr in im), np.zeros(2**16))
 # # for each slice
 for i in tqdm(range(num_slices)):
-    im_slice = im[0, :, :]
+    im_slice = im[0, :, :, :]
     # get pyramid
     im_pyramid = list(pyramid_gaussian(im_slice, max_layer=MAX_LAYER, downscale=DOWNSCALE))
     # for each resolution
@@ -55,7 +55,7 @@ for i in tqdm(range(num_slices)):
         # conver to uint16
         new_im = skimage.img_as_uint(new_im)
         # store into appropriate zarr at (slice, :, :)
-        zarrs[j][i, :, :] = new_im
+        zarrs[j][i, :, :, :] = new_im
 
 # get 95th quantile of frequency counts
 lower_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.025)[0]

@@ -14,9 +14,10 @@ import dask.array as da
 MAX_LAYER = 5
 DOWNSCALE = 2
 FILENAME = '../55HBU_GapFilled_Image.zarr'
-OUTDIR = "/media/draga/My Passport/Zarr/55HBU_Multiscale_Zarr.zarr"
+OUTDIR = "/media/draga/My Passport/Zarr/55HBU_Multiscale_Zarr_SingleChannel.zarr"
 CHUNKSIZE = 1024
-NUM_CHANNELS = 1
+NEEDED_CHANNELS = 1
+NUM_CHANNELS = 10
 
 im = da.from_zarr(FILENAME)
 
@@ -37,7 +38,7 @@ for i in range(MAX_LAYER+1):
     z_arr = zarr.open(
             outname, 
             mode='w', 
-            shape=(num_slices, NUM_CHANNELS, 1, new_res[0], new_res[1]), 
+            shape=(num_slices, NEEDED_CHANNELS, 1, new_res[0], new_res[1]), 
             dtype=im.dtype,
             chunks=(1, 1, 1, CHUNKSIZE, CHUNKSIZE), 
             compressor=compressor
@@ -48,7 +49,7 @@ for i in range(MAX_LAYER+1):
 contrast_histogram = functools.reduce(operator.add, (np.bincount(arr.ravel(), minlength=2**16) for arr in im), np.zeros(2**16))
 # # for each slice
 for i in tqdm(range(num_slices)):
-    for j in tqdm(range(NUM_CHANNELS)):
+    for j in tqdm(range(NEEDED_CHANNELS)):
         im_slice = im[i, j+1, :, :]
         # get pyramid
         im_pyramid = list(pyramid_gaussian(im_slice, max_layer=MAX_LAYER, downscale=DOWNSCALE))
@@ -75,7 +76,7 @@ for i in range(MAX_LAYER):
 zattr_dict["multiscales"][0]["version"] = "0.1"
 
 zattr_dict["omero"] = {"channels" : []}
-for i in range(NUM_CHANNELS):
+for i in range(NEEDED_CHANNELS):
     zattr_dict["omero"]["channels"].append(
         {
         "active" : i==0,

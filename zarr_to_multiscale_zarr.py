@@ -1,26 +1,108 @@
 import napari
 import zarr
+import skimage
 from skimage.transform import pyramid_gaussian
 import numpy as np
+from numcodecs import Blosc
+from pathlib import Path
+import functools
+import operator
+from tqdm import tqdm
+import json
 
-im = zarr.open('../55HBU_GapFilled_Image.zarr', mode = 'r')
+MAX_LAYER = 5
+DOWNSCALE = 2
+FILENAME = '../55HBU_GapFilled_Image.zarr'
+OUTDIR = '../55HBU_Multiscale_Zarr.zarr'
+CHUNKSIZE = 2014
+NUM_CHANNELS = 10
 
-# mins = np.empty(im.shape[0], dtype=im.dtype)
-# maxs = np.empty(im.shape[0], dtype=im.dtype)
-# for i in range(im.shape[0]):
-#     current_min = np.amin(im[i, :, :])
-#     current_max = np.amax(im[i, :, :])
-#     mins[i] = current_min
-#     maxs[i] = current_max
+im = zarr.open(FILENAME, mode = 'r')
 
-# print(np.min(mins)) # 0
-# print(np.max(maxs)) # 19254
+im_shape = im.shape
+num_slices = im_shape[0] / NUM_CHANNELS
+x = im_shape[1]
+y = im_shape[2]
+im = im.reshape((num_slices, NUM_CHANNELS, x, y))
+compressor = Blosc(cname='zstd', clevel=9, shuffle=Blosc.SHUFFLE, blocksize=0)
 
+Path(OUTDIR).mkdir(parents=True, exist_ok=True)
+# open zarr arrays for each resolution shape (num_slices, res, res)
+zarrs = []
+for i in range(0, MAX_LAYER):
+    new_res = tuple(np.ceil(np.array(im_shape[1:]) / (2 * i)).astype(int)) if i != 0 else im_shape[1:]
+    outname = OUTDIR + f"/{i}"
 
-im_slice = im[4, :, :]
-im_pyramid = list(pyramid_gaussian(im_slice, downscale=2))
-im_pyramid = [im_slice] + im_pyramid
-with napari.gui_qt():
-    v = napari.Viewer() 
-    v.add_image(im_pyramid, multiscale=True)
-    v.add_image(im_slice, multiscale=False)
+    z_arr = zarr.open(
+            outname, 
+            mode='w', 
+            shape=(num_slices, NUM_CHANNELS, 1, new_res[0], new_res[1]), 
+            dtype=im.dtype,
+            chunks=(1, CHUNKSIZE, CHUNKSIZE), 
+            compressor=compressor
+            )
+    zarrs.append(z_arr)
+
+# # array of size 2**16 for frequency counts
+contrast_histogram = functools.reduce(operator.add, (np.bincount(arr.ravel(), minlength=2**16) for arr in im), np.zeros(2**16))
+# # for each slice
+for i in tqdm(range(num_slices)):
+    im_slice = im[0, :, :]
+    # get pyramid
+    im_pyramid = list(pyramid_gaussian(im_slice, max_layer=MAX_LAYER, downscale=DOWNSCALE))
+    # for each resolution
+    for j, new_im in enumerate(im_pyramid):
+        # conver to uint16
+        new_im = skimage.img_as_uint(new_im)
+        # store into appropriate zarr at (slice, :, :)
+        zarrs[j][i, :, :] = new_im
+
+# get 95th quantile of frequency counts
+lower_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.025)[0]
+upper_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.975)[0]
+
+# write zattr file with contrast limits, whatever else it needs
+zattr_dict = {}
+zattr_dict["multiscales"] = []
+zattr_dict["multiscales"].append({"datasets" : []})
+for i in range(MAX_LAYER):
+    zattr_dict["multiscales"][0]["datasets"].append({
+        "path": f"{i}"
+    })
+zattr_dict["multiscales"][0]["version"] = "0.1"
+
+zattr_dict["omero"] = {"channels" : []}
+for i in range(NUM_CHANNELS):
+    zattr_dict["omero"]["channels"].append(
+        {
+        "active" : i==0,
+        "coefficient": 1,
+        "color": "FFFFFF",
+        "family": "linear",
+        "inverted": "false",
+        "label": str(i),
+        "window": {
+            "end": upper_contrast_limit,
+            "max": 65535,
+            "min": 0,
+            "start": lower_contrast_limit
+        }
+        }
+    )
+zattr_dict["omero"]["id"] = str(0)
+zattr_dict["omero"]["name"] = "55HBU"
+zattr_dict["omero"]["rdefs"] = {
+    "defaultT": 0,                    # First timepoint to show the user
+    "defaultZ": 0,                  # First Z section to show the user
+    "model": "color"                  # "color" or "greyscale"
+}
+zattr_dict["omero"]["version"] = "0.1"
+
+with open(OUTDIR + "/.zattrs") as outfile:
+    json.dump(zattr_dict, outfile)
+
+with open(OUTDIR + "/.zgroups") as outfile:
+    json.dump({"zarr_format": MAX_LAYER}, outfile)
+
+# write histogram to file
+np.savetxt("contrast_55HBU.csv", contrast_histogram, delimiter=",")

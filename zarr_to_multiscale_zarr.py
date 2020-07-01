@@ -55,7 +55,7 @@ for i in tqdm(range(num_slices)):
         # conver to uint16
         new_im = skimage.img_as_uint(new_im)
         # store into appropriate zarr at (slice, :, :)
-        zarrs[j][i, :, :, :] = new_im
+        zarrs[j][i, :, :, :, :] = new_im
 
 # get 95th quantile of frequency counts
 lower_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.025)[0]

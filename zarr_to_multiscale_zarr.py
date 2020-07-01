@@ -30,8 +30,8 @@ compressor = Blosc(cname='zstd', clevel=9, shuffle=Blosc.SHUFFLE, blocksize=0)
 Path(OUTDIR).mkdir(parents=True, exist_ok=True)
 # open zarr arrays for each resolution shape (num_slices, res, res)
 zarrs = []
-for i in range(0, MAX_LAYER):
-    new_res = tuple(np.ceil(np.array(im_shape[1:]) / (DOWNSCALE * i)).astype(int)) if i != 0 else im_shape[1:]
+for i in range(MAX_LAYER+1):
+    new_res = tuple(np.ceil(np.array(im_shape[1:]) / (DOWNSCALE ** i)).astype(int)) if i != 0 else im_shape[1:]
     outname = OUTDIR + f"/{i}"
 
     z_arr = zarr.open(
@@ -48,15 +48,17 @@ for i in range(0, MAX_LAYER):
 contrast_histogram = functools.reduce(operator.add, (np.bincount(arr.ravel(), minlength=2**16) for arr in im), np.zeros(2**16))
 # # for each slice
 for i in tqdm(range(num_slices)):
-    im_slice = im[0, :, :, :]
-    # get pyramid
-    im_pyramid = list(pyramid_gaussian(im_slice, max_layer=MAX_LAYER, downscale=DOWNSCALE))
-    # for each resolution
-    for j, new_im in enumerate(im_pyramid):
-        # conver to uint16
-        new_im = skimage.img_as_uint(new_im)
-        # store into appropriate zarr at (slice, :, :)
-        zarrs[j][i, :, :, :, :] = new_im
+    for j in tqdm(range(NUM_CHANNELS)):
+        im_slice = im[i, j, :, :]
+        # get pyramid
+        im_pyramid = list(pyramid_gaussian(im_slice, max_layer=MAX_LAYER, downscale=DOWNSCALE))
+        # for each resolution
+        for k, new_im in enumerate(im_pyramid):
+            print(k, i, j)
+            # conver to uint16
+            new_im = skimage.img_as_uint(new_im)
+            # store into appropriate zarr at (slice, :, :)
+            zarrs[k][i, j, 0, :, :] = new_im
 
 # get 95th quantile of frequency counts
 lower_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.025)[0]

@@ -13,8 +13,8 @@ import json
 MAX_LAYER = 5
 DOWNSCALE = 2
 FILENAME = '../55HBU_GapFilled_Image.zarr'
-OUTDIR = '../55HBU_Multiscale_Zarr.zarr'
-CHUNKSIZE = 2014
+OUTDIR = "/media/draga/My Passport/Zarr/55HBU_Multiscale_Zarr.zarr"
+CHUNKSIZE = 1024
 NUM_CHANNELS = 10
 
 im = zarr.open(FILENAME, mode = 'r')
@@ -23,7 +23,7 @@ im_shape = im.shape
 num_slices = im_shape[0] / NUM_CHANNELS
 x = im_shape[1]
 y = im_shape[2]
-im = im.reshape((num_slices, NUM_CHANNELS, x, y))
+im = np.reshape(im, (num_slices, NUM_CHANNELS, x, y))
 compressor = Blosc(cname='zstd', clevel=9, shuffle=Blosc.SHUFFLE, blocksize=0)
 
 Path(OUTDIR).mkdir(parents=True, exist_ok=True)

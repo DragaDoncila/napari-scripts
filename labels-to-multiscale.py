@@ -26,6 +26,6 @@ for i in range(MAX_LAYERS+1):
         )
     z_arr[:, :] = downsampled    
 
-    label_im = majority(label_im, np.ones((2, 2)), shift_x=-1, shift_y=-1)
-    downsampled = label_im[0::2, 0::2]
+    temp = majority(downsampled, np.ones((2, 2)), shift_x=-1, shift_y=-1)
+    downsampled = temp[0::2, 0::2]
 

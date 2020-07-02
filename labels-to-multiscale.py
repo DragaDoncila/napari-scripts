@@ -13,14 +13,14 @@ Path(OUTDIR).mkdir(parents=True, exist_ok=True)
 compressor = Blosc(cname='zstd', clevel=9, shuffle=Blosc.SHUFFLE, blocksize=0)
 
 label_im = tifffile.TiffFile("../55HBUmap_TempCNN.tif").pages[0].asarray()
-downsampled = label_im
+downsampled = label_im.astype('uint16')
 for i in range(MAX_LAYERS+1):
     outname = OUTDIR + f"/{i}"
     z_arr = zarr.open(
         outname, 
         mode='w', 
         shape=downsampled.shape, 
-        dtype=label_im.dtype,
+        dtype=np.dtype('uint32'),
         chunks=(CHUNKSIZE, CHUNKSIZE), 
         compressor=compressor
         )

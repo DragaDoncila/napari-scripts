@@ -20,7 +20,7 @@ for i in range(MAX_LAYERS+1):
         outname, 
         mode='w', 
         shape=downsampled.shape, 
-        dtype=np.dtype('uint32'),
+        dtype=np.uint32,
         chunks=(CHUNKSIZE, CHUNKSIZE), 
         compressor=compressor
         )

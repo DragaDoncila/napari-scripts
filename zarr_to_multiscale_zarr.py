@@ -64,7 +64,6 @@ def zarr_to_multiscale_zarr():
 def get_contrast_limits(im):
     # frequency count of all pixels in image
     contrast_histogram = functools.reduce(operator.add, (np.bincount(arr.ravel(), minlength=2**16) for arr in im), np.zeros(2**16))
-    contrast_histogram.compute_chunk_sizes()
     # get 95th quantile of frequency counts
     lower_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.025)[0]
     upper_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.975)[0]
@@ -119,11 +118,6 @@ def write_zattrs(contrast_limits):
 
 
 if __name__ == "__main__":
-    im = da.from_zarr(FILENAME)
-    im_shape = im.shape
-    num_slices = im_shape[0] // NUM_CHANNELS
-    x = im_shape[1]
-    y = im_shape[2]
-    im = da.reshape(im, (num_slices, NUM_CHANNELS, x, y))
-    c_limits = get_contrast_limits(im)
-    print(c_limits)
+    im = zarr.open(FILENAME, 'r')
+    c_limits = (129, 3720)
+    write_zattrs(c_limits)

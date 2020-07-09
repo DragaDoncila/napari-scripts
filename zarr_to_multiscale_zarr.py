@@ -110,11 +110,11 @@ def write_zattrs(contrast_limits):
     }
     zattr_dict["omero"]["version"] = "0.1"
 
-    with open(OUTDIR + "/.zattrs") as outfile:
+    with open(OUTDIR + "/.zattrs", "w") as outfile:
         json.dump(zattr_dict, outfile)
 
-    with open(OUTDIR + "/.zgroups") as outfile:
-        json.dump({"zarr_format": MAX_LAYER}, outfile)
+    with open(OUTDIR + "/.zgroup", "w") as outfile:
+        json.dump({"zarr_format": MAX_LAYER+1}, outfile)
 
 
 if __name__ == "__main__":

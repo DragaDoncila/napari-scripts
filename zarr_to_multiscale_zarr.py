@@ -17,7 +17,7 @@ FILENAME = '../55HBU_GapFilled_Image.zarr'
 OUTDIR = "/media/draga/My Passport/Zarr/55HBU_Multiscale_Zarr_SingleChannel.zarr"
 CHUNKSIZE = 1024
 NUM_CHANNELS = 10
-NEEDED_CHANNELS = 1
+NEEDED_CHANNELS = 10
 
 def zarr_to_multiscale_zarr():
     im = da.from_zarr(FILENAME)
@@ -49,7 +49,7 @@ def zarr_to_multiscale_zarr():
     # # for each slice
     for i in tqdm(range(num_slices)):
         for j in tqdm(range(NEEDED_CHANNELS)):
-            im_slice = im[i, j+1, :, :]
+            im_slice = im[i, j, :, :]
             # get pyramid
             im_pyramid = list(pyramid_gaussian(im_slice, max_layer=MAX_LAYER, downscale=DOWNSCALE))
             # for each resolution

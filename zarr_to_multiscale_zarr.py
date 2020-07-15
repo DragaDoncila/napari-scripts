@@ -61,14 +61,14 @@ def zarr_to_multiscale_zarr():
                 zarrs[k][i, j, 0, :, :] = new_im
 
 
-def get_contrast_limits(im):
+def get_contrast_limits(im, fn):
     # frequency count of all pixels in image
     contrast_histogram = functools.reduce(operator.add, (np.bincount(arr.ravel(), minlength=2**16) for arr in im), np.zeros(2**16))
     # get 95th quantile of frequency counts
     lower_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.025)[0]
     upper_contrast_limit = np.flatnonzero(np.cumsum(contrast_histogram) / np.sum(contrast_histogram) > 0.975)[0]
     # write histogram to file
-    np.savetxt("contrast_55HBU.txt", contrast_histogram)
+    np.savetxt(fn, contrast_histogram)
     return lower_contrast_limit, upper_contrast_limit
 
 def write_zattrs(contrast_limits):
